@@ -136,17 +136,28 @@ HOME_CSS = """
 }
 .bc-card-label { font-size: 13px; font-weight: 700; color: #1E2A3C; margin-bottom: 4px; }
 .bc-card-note { font-size: 12.5px; color: #778195; margin-top: 8px; }
-.st-key-hero_card [role="radiogroup"] { gap: 12px; width: 100%; }
-.st-key-hero_card label[data-baseweb="radio"] {
-    width: 100%; background: #fff; border: 1.5px solid #DCE2EC;
-    border-radius: 12px; padding: 17px 20px; margin: 0;
+.st-key-hero_card [data-testid="stRadio"] { width: 100%; }
+.st-key-hero_card [data-testid="stRadio"] [role="radiogroup"] { gap: 12px; width: 100%; }
+.st-key-hero_card [data-testid="stRadio"] label {
+    width: 100%; background: #fff; border: 1.5px solid #DCE2EC; border-radius: 12px;
+    padding: 16px 20px; margin: 0; cursor: pointer; box-sizing: border-box;
 }
-.st-key-hero_card label[data-baseweb="radio"] > div:first-child { display: none; }
-.st-key-hero_card label[data-baseweb="radio"] p { font-weight: 700; font-size: 16px; color: #111C2E; margin: 0; }
-.st-key-hero_card label[data-baseweb="radio"]:has(input:checked) {
+.st-key-hero_card [data-testid="stRadio"] label > div:first-child { display: none !important; }
+.st-key-hero_card [data-testid="stRadio"] label p {
+    font-weight: 700; font-size: 16px; color: #111C2E; margin: 0;
+}
+.st-key-hero_card [data-testid="stRadio"] label:has(input:checked) {
     background: #E8F0FE; border-color: #2F6FD6;
 }
-.st-key-hero_card label[data-baseweb="radio"]:has(input:checked) p { color: #1F5FBF; }
+.st-key-hero_card [data-testid="stRadio"] label:has(input:checked) p { color: #1F5FBF; }
+
+/* never cut button text with "..." */
+.st-key-hero_band button p {
+    white-space: normal !important; overflow: visible !important;
+    text-overflow: clip !important; line-height: 1.2;
+}
+.st-key-start_nav button p { white-space: nowrap !important; }
+.bc-brand { white-space: nowrap; }
 
 /* ---------- GENERIC BANDS ---------- */
 .bc-band { padding: 72px var(--gx); }
@@ -171,6 +182,10 @@ HOME_CSS = """
 .bc-row b { font-weight: 800; color: #111C2E; }
 .bc-track { height: 8px; background: #E3E8F0; border-radius: 99px; overflow: hidden; }
 .bc-fill { height: 8px; border-radius: 99px; }
+
+.bc-looks { font-size: 13px; font-weight: 700; color: #1E2A3C; margin-bottom: 12px; }
+.bc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.bc-chip { font-size: 13px; font-weight: 600; padding: 7px 13px; border-radius: 999px; }
 
 /* how it works */
 .bc-step-num {
@@ -227,6 +242,203 @@ html(BASE_CSS)
 html(HOME_CSS if page == "Home" else INNER_CSS)
 
 
+CALM_GAME = """
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; font-family: 'Manrope', sans-serif; }
+  #stage { position: relative; height: 540px; overflow: hidden; border-radius: 24px;
+           background: linear-gradient(180deg, #E8F0FE 0%, #DDF3EE 100%); user-select: none; }
+  #msg { position: absolute; top: 18px; width: 100%; text-align: center; color: #3B4A63;
+         font-weight: 700; font-size: 15px; z-index: 5; pointer-events: none; padding: 0 16px; box-sizing: border-box; }
+  #count { position: absolute; bottom: 14px; width: 100%; text-align: center; color: #5A6B85;
+           font-weight: 500; font-size: 14px; z-index: 5; pointer-events: none; }
+  #breath { position: absolute; left: 50%; top: 50%; width: 170px; height: 170px; margin: -85px 0 0 -85px;
+            border-radius: 50%; background: rgba(31, 95, 191, .16); display: flex; align-items: center;
+            justify-content: center; color: #1F5FBF; font-weight: 700; font-size: 17px;
+            animation: br 8s ease-in-out infinite; pointer-events: none; }
+  @keyframes br { 0%, 100% { transform: scale(.7); } 50% { transform: scale(1.35); } }
+  .bubble { position: absolute; bottom: -100px; border-radius: 50%; cursor: pointer; z-index: 3;
+            background: radial-gradient(circle at 30% 30%, #fff, rgba(110, 165, 240, .38));
+            border: 1.5px solid rgba(255, 255, 255, .9); animation: rise linear forwards;
+            transition: transform .25s ease, opacity .25s ease; }
+  @keyframes rise { to { transform: translateY(-680px); } }
+  .bubble.pop { transform: scale(1.5) !important; opacity: 0; animation-play-state: paused; }
+</style>
+<div id="stage">
+  <div id="msg">Pop a bubble. Breathe with the circle. No score, no timer, no rush.</div>
+  <div id="breath"><span id="bt">Breathe in</span></div>
+  <div id="count">Bubbles popped: 0</div>
+</div>
+<script>
+  const stage = document.getElementById('stage');
+  const msg = document.getElementById('msg');
+  const count = document.getElementById('count');
+  const bt = document.getElementById('bt');
+  const kind = ["Nice. Let your shoulders drop.", "Good. Unclench your jaw.",
+                "Lovely. Take one slow breath.", "Well done. You can stop whenever you like.",
+                "Softly now. You are doing fine."];
+  let popped = 0;
+
+  function spawn() {
+    const b = document.createElement('div');
+    const size = 44 + Math.random() * 56;
+    b.className = 'bubble';
+    b.style.width = b.style.height = size + 'px';
+    b.style.left = Math.random() * (stage.clientWidth - size) + 'px';
+    b.style.animationDuration = (9 + Math.random() * 6) + 's';
+    b.addEventListener('pointerdown', () => {
+      if (b.classList.contains('pop')) return;
+      b.classList.add('pop');
+      popped++;
+      count.textContent = 'Bubbles popped: ' + popped;
+      if (popped % 8 === 0) msg.textContent = kind[(popped / 8 - 1) % kind.length | 0];
+      setTimeout(() => b.remove(), 250);
+    });
+    b.addEventListener('animationend', () => b.remove());
+    stage.appendChild(b);
+  }
+  for (let i = 0; i < 5; i++) setTimeout(spawn, i * 500);
+  setInterval(spawn, 900);
+
+  let inhale = true;
+  setInterval(() => { inhale = !inhale; bt.textContent = inhale ? 'Breathe in' : 'Breathe out'; }, 4000);
+</script>
+"""
+
+
+MEMORY_GAME = """
+<style>
+  body { margin: 0; font-family: sans-serif; }
+  #wrap { height: 540px; border-radius: 24px; background: linear-gradient(180deg, #FFF4E8 0%, #E8F0FE 100%);
+          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+  #info { color: #3B4A63; font-weight: 700; font-size: 15px; text-align: center; padding: 0 16px; }
+  #board { display: grid; grid-template-columns: repeat(4, 84px); gap: 12px; }
+  .card { width: 84px; height: 84px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
+          font-size: 40px; cursor: pointer; background: #B9CCEF; color: transparent; transition: transform .2s, background .2s; }
+  .card::before { content: "?"; color: #fff; font-size: 28px; font-weight: 700; position: absolute; }
+  .card { position: relative; }
+  .card.open, .card.done { background: #fff; color: inherit; transform: scale(1.04); }
+  .card.open::before, .card.done::before { content: ""; }
+  .card.done { background: #DDF3EE; }
+  button { border: 0; background: #1F5FBF; color: #fff; font-weight: 700; padding: 11px 22px; border-radius: 10px; cursor: pointer; font-size: 14px; }
+</style>
+<div id="wrap">
+  <div id="info"></div>
+  <div id="board"></div>
+  <button onclick="build()">Shuffle again</button>
+</div>
+<script>
+  const emojis = ["🌿", "🌸", "🌊", "☀️", "🌙", "🦋"];
+  const board = document.getElementById('board');
+  const info = document.getElementById('info');
+  let first = null, lock = false, matched = 0, moves = 0;
+  function build() {
+    board.innerHTML = ''; matched = 0; moves = 0; first = null; lock = false;
+    info.textContent = 'Find the matching pairs. Take your time, there is no timer.';
+    [...emojis, ...emojis].sort(() => Math.random() - 0.5).forEach(e => {
+      const c = document.createElement('div');
+      c.className = 'card'; c.dataset.e = e; c.textContent = e;
+      c.onclick = () => flip(c);
+      board.appendChild(c);
+    });
+  }
+  function flip(c) {
+    if (lock || c.classList.contains('open') || c.classList.contains('done')) return;
+    c.classList.add('open');
+    if (!first) { first = c; return; }
+    moves++;
+    if (first.dataset.e === c.dataset.e) {
+      first.classList.add('done'); c.classList.add('done'); first = null; matched++;
+      if (matched === 6) info.textContent = 'All matched in ' + moves + ' moves. Lovely. Take one slow breath.';
+    } else {
+      lock = true; const a = first; first = null;
+      setTimeout(() => { a.classList.remove('open'); c.classList.remove('open'); lock = false; }, 800);
+    }
+  }
+  build();
+</script>
+"""
+
+SLIDE_GAME = """
+<style>
+  body { margin: 0; font-family: sans-serif; }
+  #wrap { height: 540px; border-radius: 24px; background: linear-gradient(180deg, #DDF3EE 0%, #E8F0FE 100%);
+          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+  #info { color: #3B4A63; font-weight: 700; font-size: 15px; text-align: center; padding: 0 16px; min-height: 22px; }
+  #board { display: grid; gap: 8px; width: 340px; height: 340px; }
+  .tile { display: flex; align-items: center; justify-content: center; border-radius: 14px; background: #6EA5F0;
+          color: #fff; font-weight: 800; cursor: pointer; user-select: none; transition: transform .1s; }
+  .tile:active { transform: scale(.95); }
+  .tile.empty { background: rgba(255, 255, 255, .45); cursor: default; }
+  .row { display: flex; gap: 10px; }
+  button { border: 0; background: #1F5FBF; color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 10px; cursor: pointer; font-size: 14px; }
+  button.alt { background: #fff; color: #1F5FBF; border: 1.5px solid #B9CCEF; }
+</style>
+<div id="wrap">
+  <div id="info"></div>
+  <div id="board"></div>
+  <div class="row">
+    <button class="alt" onclick="setSize(3)">3 x 3 (medium)</button>
+    <button class="alt" onclick="setSize(4)">4 x 4 (hard)</button>
+    <button onclick="build()">Shuffle again</button>
+  </div>
+</div>
+<script>
+  const board = document.getElementById('board');
+  const info = document.getElementById('info');
+  let n = 3, tiles = [], moves = 0, done = false;
+  function setSize(k) { n = k; build(); }
+  function neighbours(e) {
+    const r = Math.floor(e / n), c = e % n, out = [];
+    if (r > 0) out.push(e - n);
+    if (r < n - 1) out.push(e + n);
+    if (c > 0) out.push(e - 1);
+    if (c < n - 1) out.push(e + 1);
+    return out;
+  }
+  function build() {
+    tiles = []; for (let i = 1; i < n * n; i++) tiles.push(i); tiles.push(0);
+    let e = n * n - 1, prev = -1;
+    for (let k = 0; k < 150 * n; k++) {
+      const opts = neighbours(e).filter(x => x !== prev);
+      const t = opts[Math.floor(Math.random() * opts.length)];
+      tiles[e] = tiles[t]; tiles[t] = 0; prev = e; e = t;
+    }
+    moves = 0; done = false;
+    info.textContent = 'Slide the tiles into order, 1 to ' + (n * n - 1) + '. No timer, take your time.';
+    render();
+  }
+  function render() {
+    board.style.gridTemplateColumns = 'repeat(' + n + ', 1fr)';
+    board.style.gridTemplateRows = 'repeat(' + n + ', 1fr)';
+    board.innerHTML = '';
+    tiles.forEach((v, i) => {
+      const d = document.createElement('div');
+      d.className = 'tile' + (v === 0 ? ' empty' : '');
+      d.style.fontSize = (n === 3 ? 38 : 30) + 'px';
+      d.textContent = v === 0 ? '' : v;
+      d.onclick = () => move(i);
+      board.appendChild(d);
+    });
+  }
+  function move(i) {
+    if (done) return;
+    const e = tiles.indexOf(0);
+    if (neighbours(e).indexOf(i) === -1) return;
+    tiles[e] = tiles[i]; tiles[i] = 0; moves++;
+    render();
+    if (tiles.slice(0, n * n - 1).every((v, idx) => v === idx + 1)) {
+      done = true;
+      info.textContent = 'Solved in ' + moves + ' moves. Lovely work. Take a slow breath.';
+    } else {
+      info.textContent = 'Moves: ' + moves;
+    }
+  }
+  build();
+</script>
+"""
+
+
 # ==========================================
 # LOAD TRAINED MODELS
 # ==========================================
@@ -261,7 +473,7 @@ if page == "Home":
             with n2:
                 html("""
                 <div class="bc-links">
-                <a href="#compare" target="_self">Compare</a>
+                <a href="#domains" target="_self">Domains</a>
                 <a href="#how" target="_self">How it works</a>
                 <a href="#suggestions" target="_self">Suggestions</a>
                 <a href="#about" target="_self">About</a>
@@ -281,14 +493,15 @@ if page == "Home":
             <div class="bc-lead">Compare burnout across employees, students and healthcare
             workers, then get suggestions shaped around your own results.</div>
             """)
-            b1, b2, _ = st.columns([1, 1, 0.9])
+            b1, b2, _ = st.columns([1.1, 1.1, 0.3])
             with b1:
                 if st.button("Take the check-in", key="take_checkin", use_container_width=True):
                     st.session_state["page"] = domain_pages[st.session_state["selected_domain"]]
                     st.rerun()
             with b2:
-                if st.button("See the comparison", key="see_comparison", use_container_width=True):
-                    st.session_state["scroll_to_compare"] = True
+                if st.button("Take a calm break", key="see_comparison", use_container_width=True):
+                    st.session_state["page"] = "Calm Break"
+                    st.rerun()
 
         with hero_right:
             with st.container(key="hero_card"):
@@ -301,42 +514,35 @@ if page == "Home":
                 )
                 html('<div class="bc-card-note">Takes about 3 minutes. Responses are anonymous.</div>')
 
-    # smooth-scroll helper for "See the comparison"
-    if st.session_state.pop("scroll_to_compare", False):
-        components.html(
-            "<script>const el = window.parent.document.getElementById('compare');"
-            "if (el) el.scrollIntoView({behavior:'smooth'});</script>",
-            height=0,
-        )
-
     # ---------- THREE DOMAINS ----------
     domains = [
-        ("Employee", "#E6EEFB", "#1F5FBF", "#1F5FBF",
+        ("Employee", "#E6EEFB", "#1F5FBF",
          "Workload, deadlines and unclear boundaries between work and home.",
-         [("Exhaustion", 68), ("Detachment", 52), ("Reduced efficacy", 41)]),
-        ("Student", "#FDEBDC", "#A4510F", "#A4510F",
+         ["Workload", "Overtime", "Job satisfaction", "Team support", "Career growth"]),
+        ("Student", "#FDEBDC", "#A4510F",
          "Exam pressure, constant evaluation and irregular sleep.",
-         [("Exhaustion", 74), ("Detachment", 47), ("Reduced efficacy", 58)]),
-        ("Healthcare", "#DDF3EE", "#0E6B5C", "#0E6B5C",
+         ["Study hours", "Sleep", "Stress and anxiety", "Financial stress", "Family support"]),
+        ("Healthcare", "#DDF3EE", "#0E6B5C",
          "Long shifts, emotional load and high-stakes decisions.",
-         [("Exhaustion", 79), ("Detachment", 61), ("Reduced efficacy", 36)]),
+         ["Stress level", "Job satisfaction", "Workplace factors", "Support programs", "Absences"]),
     ]
     cards = ""
-    for name, tag_bg, tag_fg, bar, desc, rows in domains:
-        r = "".join(
-            f'<div class="bc-row"><span>{lbl}</span><b>{val}%</b></div>'
-            f'<div class="bc-track"><div class="bc-fill" style="width:{val}%;background:{bar};"></div></div>'
-            for lbl, val in rows
+    for name, tag_bg, tag_fg, desc, factors in domains:
+        chips = "".join(
+            f'<span class="bc-chip" style="background:{tag_bg};color:{tag_fg};">{f}</span>'
+            for f in factors
         )
         cards += (
             f'<div class="bc-dcard"><span class="bc-tag" style="background:{tag_bg};color:{tag_fg};">{name}</span>'
-            f'<div class="desc">{desc}</div>{r}</div>'
+            f'<div class="desc">{desc}</div>'
+            f'<div class="bc-looks">What the check-in looks at</div>'
+            f'<div class="bc-chips">{chips}</div></div>'
         )
 
     html(f"""
-    <div class="bc-band bc-band-white" id="compare">
+    <div class="bc-band bc-band-white" id="domains">
     <h2 class="bc-h2">Three domains, side by side</h2>
-    <div class="bc-sub">Illustrative sample values, to be replaced with study results.</div>
+    <div class="bc-sub">Each check-in focuses on the factors that matter most in that setting.</div>
     <div class="bc-grid3">{cards}</div>
     </div>
     """)
@@ -793,6 +999,32 @@ elif page == "Student Burnout":
         except Exception as error:
             st.error(f"Prediction failed: {error}")
             st.write("Please share the error message so we can check the model inputs.")
+
+
+
+# ==========================================
+# CALM BREAK (stress-free mini game)
+# ==========================================
+elif page == "Calm Break":
+    st.title("Calm Break")
+    st.write(
+        "Take a minute for yourself. Pick a game below and play at your own pace. "
+        "There is no score to beat and no time limit."
+    )
+    choice = st.radio(
+        "Choose a game",
+        ["🫧 Bubble pop", "🃏 Memory match", "🔢 Sliding puzzle"],
+        horizontal=True,
+        key="calm_game_choice",
+    )
+    if choice.endswith("Bubble pop"):
+        components.html(CALM_GAME, height=560)
+    elif choice.endswith("Memory match"):
+        components.html(MEMORY_GAME, height=560)
+    else:
+        components.html(SLIDE_GAME, height=560)
+    st.caption("Games version 6 (three games available)")
+    st.caption("A short pause is not a treatment, but slow breathing can help you feel calmer in the moment.")
 
 
 # ==========================================
