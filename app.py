@@ -235,6 +235,11 @@ INNER_CSS = """
 .footer-disclaimer { font-size: .82rem; color: #778195; margin-bottom: .6rem; }
 .footer-warning { font-size: .78rem; line-height: 1.6; color: #778195; max-width: 700px; margin: 0 auto .8rem; }
 .footer-copyright { font-size: .75rem; color: #778195; margin-top: 1rem; }
+
+/* phones: less side padding so games and forms fit */
+@media (max-width: 640px) {
+    .block-container { padding: 2rem 1rem; }
+}
 </style>
 """
 
@@ -242,6 +247,9 @@ html(BASE_CSS)
 html(HOME_CSS if page == "Home" else INNER_CSS)
 
 
+# ==========================================
+# CALM BREAK GAMES
+# ==========================================
 CALM_GAME = """
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -306,56 +314,100 @@ CALM_GAME = """
 """
 
 
-MEMORY_GAME = """
+# Mandala Draw: draw with a finger or mouse, strokes are mirrored into a
+# symmetrical glowing pattern. Canvas sizes itself to the screen, so it works
+# on phones and laptops.
+MANDALA_GAME = """
 <style>
+  * { box-sizing: border-box; }
   body { margin: 0; font-family: sans-serif; }
   #wrap { height: 540px; border-radius: 24px; background: linear-gradient(180deg, #FFF4E8 0%, #E8F0FE 100%);
-          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
-  #info { color: #3B4A63; font-weight: 700; font-size: 15px; text-align: center; padding: 0 16px; }
-  #board { display: grid; grid-template-columns: repeat(4, 84px); gap: 12px; }
-  .card { width: 84px; height: 84px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
-          font-size: 40px; cursor: pointer; background: #B9CCEF; color: transparent; transition: transform .2s, background .2s; }
-  .card::before { content: "?"; color: #fff; font-size: 28px; font-weight: 700; position: absolute; }
-  .card { position: relative; }
-  .card.open, .card.done { background: #fff; color: inherit; transform: scale(1.04); }
-  .card.open::before, .card.done::before { content: ""; }
-  .card.done { background: #DDF3EE; }
-  button { border: 0; background: #1F5FBF; color: #fff; font-weight: 700; padding: 11px 22px; border-radius: 10px; cursor: pointer; font-size: 14px; }
+          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 10px; }
+  #info { color: #3B4A63; font-weight: 700; font-size: 14px; text-align: center; padding: 0 8px; }
+  canvas { background: #0F1B2D; border-radius: 50%; touch-action: none; cursor: crosshair;
+           box-shadow: 0 8px 30px rgba(31, 95, 191, .25); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  .sw { width: 30px; height: 30px; border-radius: 50%; border: 3px solid #fff; cursor: pointer; padding: 0; }
+  .sw.on { border-color: #1F5FBF; }
+  #rainbow { background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); }
+  button.txt { border: 0; background: #1F5FBF; color: #fff; font-weight: 700; padding: 9px 14px;
+               border-radius: 10px; cursor: pointer; font-size: 13px; }
+  button.alt { background: #fff; color: #1F5FBF; border: 1.5px solid #B9CCEF; }
+  button.alt.on { background: #E8F0FE; border-color: #1F5FBF; }
 </style>
 <div id="wrap">
-  <div id="info"></div>
-  <div id="board"></div>
-  <button onclick="build()">Shuffle again</button>
+  <div id="info">Draw with your finger. Watch your lines bloom into a pattern.</div>
+  <canvas id="cv"></canvas>
+  <div class="row" id="colors">
+    <button class="sw on" id="rainbow" data-c="rainbow"></button>
+    <button class="sw" style="background:#6EA5F0" data-c="#6EA5F0"></button>
+    <button class="sw" style="background:#7FE0C8" data-c="#7FE0C8"></button>
+    <button class="sw" style="background:#FFB27A" data-c="#FFB27A"></button>
+    <button class="sw" style="background:#FFFFFF" data-c="#FFFFFF"></button>
+  </div>
+  <div class="row">
+    <button class="txt alt" data-n="6">6 petals</button>
+    <button class="txt alt on" data-n="8">8 petals</button>
+    <button class="txt alt" data-n="12">12 petals</button>
+    <button class="txt" id="clear">Clear</button>
+  </div>
 </div>
 <script>
-  const emojis = ["🌿", "🌸", "🌊", "☀️", "🌙", "🦋"];
-  const board = document.getElementById('board');
-  const info = document.getElementById('info');
-  let first = null, lock = false, matched = 0, moves = 0;
-  function build() {
-    board.innerHTML = ''; matched = 0; moves = 0; first = null; lock = false;
-    info.textContent = 'Find the matching pairs. Take your time, there is no timer.';
-    [...emojis, ...emojis].sort(() => Math.random() - 0.5).forEach(e => {
-      const c = document.createElement('div');
-      c.className = 'card'; c.dataset.e = e; c.textContent = e;
-      c.onclick = () => flip(c);
-      board.appendChild(c);
-    });
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const size = Math.max(200, Math.min(window.innerWidth - 24, 320));
+  cv.style.width = cv.style.height = size + 'px';
+  cv.width = cv.height = size * dpr;
+  let n = 8, color = 'rainbow', hue = 0, last = null, drawing = false;
+
+  function reset() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
   }
-  function flip(c) {
-    if (lock || c.classList.contains('open') || c.classList.contains('done')) return;
-    c.classList.add('open');
-    if (!first) { first = c; return; }
-    moves++;
-    if (first.dataset.e === c.dataset.e) {
-      first.classList.add('done'); c.classList.add('done'); first = null; matched++;
-      if (matched === 6) info.textContent = 'All matched in ' + moves + ' moves. Lovely. Take one slow breath.';
-    } else {
-      lock = true; const a = first; first = null;
-      setTimeout(() => { a.classList.remove('open'); c.classList.remove('open'); lock = false; }, 800);
+  function seg(a, b, col) {
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, size * dpr / 2, size * dpr / 2);
+    ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 8;
+    ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      for (let m = 0; m < 2; m++) {
+        ctx.save();
+        ctx.rotate(i * 2 * Math.PI / n);
+        if (m) ctx.scale(1, -1);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        ctx.restore();
+      }
     }
+    ctx.restore();
   }
-  build();
+  function pos(e) {
+    const r = cv.getBoundingClientRect();
+    return { x: e.clientX - r.left - size / 2, y: e.clientY - r.top - size / 2 };
+  }
+  cv.addEventListener('pointerdown', e => {
+    drawing = true; last = pos(e); cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!drawing) return;
+    const p = pos(e);
+    let col = color;
+    if (color === 'rainbow') { hue = (hue + 3) % 360; col = 'hsl(' + hue + ',85%,68%)'; }
+    seg(last, p, col);
+    last = p;
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
+    cv.addEventListener(ev, () => { drawing = false; }));
+
+  document.querySelectorAll('.sw').forEach(b => b.onclick = () => {
+    document.querySelectorAll('.sw').forEach(x => x.classList.remove('on'));
+    b.classList.add('on'); color = b.dataset.c;
+  });
+  document.querySelectorAll('[data-n]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('[data-n]').forEach(x => x.classList.remove('on'));
+    b.classList.add('on'); n = parseInt(b.dataset.n); reset();
+  });
+  document.getElementById('clear').onclick = reset;
 </script>
 """
 
@@ -365,12 +417,12 @@ SLIDE_GAME = """
   #wrap { height: 540px; border-radius: 24px; background: linear-gradient(180deg, #DDF3EE 0%, #E8F0FE 100%);
           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
   #info { color: #3B4A63; font-weight: 700; font-size: 15px; text-align: center; padding: 0 16px; min-height: 22px; }
-  #board { display: grid; gap: 8px; width: 340px; height: 340px; }
+  #board { display: grid; gap: 8px; width: min(340px, 86vw); height: min(340px, 86vw); }
   .tile { display: flex; align-items: center; justify-content: center; border-radius: 14px; background: #6EA5F0;
           color: #fff; font-weight: 800; cursor: pointer; user-select: none; transition: transform .1s; }
   .tile:active { transform: scale(.95); }
   .tile.empty { background: rgba(255, 255, 255, .45); cursor: default; }
-  .row { display: flex; gap: 10px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; padding: 0 8px; }
   button { border: 0; background: #1F5FBF; color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 10px; cursor: pointer; font-size: 14px; }
   button.alt { background: #fff; color: #1F5FBF; border: 1.5px solid #B9CCEF; }
 </style>
@@ -1001,7 +1053,6 @@ elif page == "Student Burnout":
             st.write("Please share the error message so we can check the model inputs.")
 
 
-
 # ==========================================
 # CALM BREAK (stress-free mini game)
 # ==========================================
@@ -1013,17 +1064,17 @@ elif page == "Calm Break":
     )
     choice = st.radio(
         "Choose a game",
-        ["🫧 Bubble pop", "🃏 Memory match", "🔢 Sliding puzzle"],
+        ["🫧 Bubble pop", "🌸 Mandala draw", "🔢 Sliding puzzle"],
         horizontal=True,
         key="calm_game_choice",
     )
     if choice.endswith("Bubble pop"):
         components.html(CALM_GAME, height=560)
-    elif choice.endswith("Memory match"):
-        components.html(MEMORY_GAME, height=560)
+    elif choice.endswith("Mandala draw"):
+        components.html(MANDALA_GAME, height=560)
     else:
         components.html(SLIDE_GAME, height=560)
-    st.caption("Games version 6 (three games available)")
+    st.caption("Games version 7 (three games available)")
     st.caption("A short pause is not a treatment, but slow breathing can help you feel calmer in the moment.")
 
 
